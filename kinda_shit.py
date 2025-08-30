@@ -1,4 +1,3 @@
-£ PDFOVI NE UPADAJU U KONTEKST :(
 import io
 import json
 import time
@@ -94,25 +93,28 @@ def stream_generate(model_name: str, system_prompt: str, question: str, history:
     from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
     from langchain_ollama import OllamaLLM
 
+    # FIX: include context explicitly in the prompt
     prompt = ChatPromptTemplate.from_messages([
-        ("system", system_prompt),
+        ("system", "{system_prompt}"),
+        ("system", "CONTEXT (from retrieved PDF chunks):\n{context}"),
         MessagesPlaceholder("history"),
-        ("human", "Question: {question}\n\nUse the CONTEXT above to answer. If the answer isn't in the context, say you don't find it in the document."),
+        ("human", "{question}")
     ])
 
     llm = OllamaLLM(model=model_name, temperature=temperature)
 
     chain = (
-        {"history": lambda x: history, "question": lambda x: question}
+        {
+            "history": lambda x: history,
+            "question": lambda x: question,
+            "context": lambda x: context,
+            "system_prompt": lambda x: system_prompt,
+        }
         | prompt
         | llm
     )
 
-    # We prepend context as a system message for stronger grounding
-    system_ctx = {"role": "system", "content": f"CONTEXT (from retrieved PDF chunks):\n{context}"}
-    final_history = [system_ctx] + history
-
-    for chunk in chain.stream({"history": final_history, "question": question}):
+    for chunk in chain.stream({}):
         yield chunk
 
 
